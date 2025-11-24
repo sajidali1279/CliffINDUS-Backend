@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   db:
     image: postgres:15
@@ -32,15 +34,22 @@ services:
 
   frontend:
     build:
-      context: ./my-first-app/CliffINDUS/cliffindus_frontend
+      context: ./my-first-app/CliffINDUS/cliffindus_frontend/cliffindus-admin
+      dockerfile: Dockerfile
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: npm run dev -- --host
     volumes:
-      - ./my-first-app/CliffINDUS/cliffindus_frontend:/app
+      - ./my-first-app/CliffINDUS/cliffindus_frontend/cliffindus-admin:/app
+      - /app/node_modules
     ports:
       - "5173:5173"
     stdin_open: true
     tty: true
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    depends_on:
+      - web
+
 
 volumes:
   postgres_data:

@@ -4,25 +4,41 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import RoleUpgradeRequestViewSet, UserViewSet, RegisterUserView
+from cliffindus_backend.users.admin_views import AdminUserViewSet
+from cliffindus_backend.users.admin_upgrade_views import AdminUpgradeRequestViewSet
 
-# --------------------------------------------------------
-# ✅ ROUTER SETUP
-# --------------------------------------------------------
+from .views import (
+    RoleUpgradeRequestViewSet,
+    UserViewSet,
+    RegisterUserView,
+    AdminRoleDashboardViewSet,
+    SendVerificationEmailView,
+    MeView,
+)
+
+
+
 router = DefaultRouter()
 router.register(r'upgrade-requests', RoleUpgradeRequestViewSet, basename='upgrade-request')
 router.register(r'users', UserViewSet, basename='user')
+router.register(r'admin/role-requests', AdminRoleDashboardViewSet, basename='admin-role-requests')
+router.register(r'admin/users', AdminUserViewSet, basename='admin-user')
+router.register(r"admin/upgrade-requests", AdminUpgradeRequestViewSet, basename="admin-upgrade-requests")
 
-# --------------------------------------------------------
-# ✅ URL PATTERNS
-# --------------------------------------------------------
+
 urlpatterns = [
     path('', include(router.urls)),
 
-    # 🔐 Authentication (JWT)
+    # 🔐 AUTH
     path('auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # 🧾 Registration
+    # 🧾 Registration + Verification
     path('register/', RegisterUserView.as_view(), name='register'),
+    path('send-verification/', SendVerificationEmailView.as_view(), name='send_verification'),
+
+    # 👤 SELF PROFILE
+    path('me/', MeView.as_view(), name='me'),
+    path("api/admin/", include("cliffindus_backend.admin.urls")),
+
 ]

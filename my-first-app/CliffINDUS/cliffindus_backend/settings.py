@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_extensions',
+    #'django_extensions',
     'cliffindus_backend.authentication',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'cliffindus_backend.users',
     'cliffindus_backend.products',
     'django_filters',
+    "cliffindus_backend.credits.apps.CreditsConfig",
 ]
 
 MIDDLEWARE = [
@@ -140,10 +141,23 @@ AUTH_USER_MODEL = 'users.User'
 
 ALLOWED_HOSTS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "authorization",
+    "content-type",
+    "accept",
+    "origin",
+    "user-agent",
+    "dnt",
+    "cache-control",
+    "x-requested-with",
+]
+
 
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
@@ -156,9 +170,25 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# --- Email settings (console backend for now)
+# --------------------------------------------------------
+# ✅ EMAIL CONFIGURATION
+# --------------------------------------------------------
+# Default sender for all system emails
+DEFAULT_FROM_EMAIL = "no-reply@cliffindus.com"
+
+# 🧪 Development: print all emails to console
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = "noreply@cliffindus.com"
+
+# 🌐 Optional production-ready SMTP configuration
+# Uncomment and fill in when moving to real email sending
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_HOST = "smtp.gmail.com"
+# EMAIL_PORT = 587
+# EMAIL_HOST_USER = "your_email@gmail.com"
+# EMAIL_HOST_PASSWORD = "your_app_specific_password"
+# EMAIL_USE_TLS = True
+# EMAIL_USE_SSL = False
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))

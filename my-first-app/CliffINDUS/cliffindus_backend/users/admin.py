@@ -6,16 +6,14 @@ from django.utils.timezone import localtime
 from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.admin import SimpleListFilter
-from .admin_dashboard import CliffINDUSAdminSite
+from django import forms
 
-from .models import User, RoleUpgradeRequest
 from cliffindus_backend.products.models import Product, Order
 from cliffindus_backend.users.admin_dashboard import cliffindus_admin_site
-from cliffindus_backend.users.models import User
-
+from cliffindus_backend.users.models import User, RoleUpgradeRequest
 
 # ==========================================================
-# 🧩 INLINE TABLES
+# INLINE TABLES
 # ==========================================================
 
 class ProductInline(admin.TabularInline):
@@ -46,7 +44,7 @@ class RoleUpgradeRequestInline(admin.TabularInline):
 
 
 # ==========================================================
-# 🧮 CUSTOM FILTER: RECENT VERIFICATION STATUS
+# CUSTOM FILTER
 # ==========================================================
 
 class RecentVerificationFilter(SimpleListFilter):
@@ -72,12 +70,55 @@ class RecentVerificationFilter(SimpleListFilter):
 
 
 # ==========================================================
-# 🧑‍💼 USER ADMIN CONFIGURATION
+# ADD USER FORMS
+# ==========================================================
+
+class UserCreationForm(forms.ModelForm):
+    password1 = forms.CharField(label="Password", widget=forms.PasswordInput)
+    password2 = forms.CharField(label="Confirm Password", widget=forms.PasswordInput)
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "phone", "role", "admin_type")
+
+    def clean_password2(self):
+        p1 = self.cleaned_data.get("password1")
+        p2 = self.cleaned_data.get("password2")
+        if p1 and p2 and p1 != p2:
+            raise forms.ValidationError("Passwords do not match.")
+        return p2
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data["password1"])
+        if commit:
+            user.save()
+        return user
+
+
+class UserChangeForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = "__all__"
+
+
+# ==========================================================
+# USER ADMIN
 # ==========================================================
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
-    """Customized Django Admin view for the User model."""
+
+    add_form = UserCreationForm
+    form = UserChangeForm
+
+    add_fieldsets = (
+        (None, {
+            "classes": ("wide",),
+            "fields": ("username", "email", "phone", "role", "admin_type", "password1", "password2"),
+        }),
+    )
+
     list_display = (
         "username",
         "email",
@@ -98,7 +139,7 @@ class UserAdmin(admin.ModelAdmin):
     readonly_fields = ("verification_summary", "role_colored")
 
     # ------------------------------------------------------
-    # DYNAMIC INLINES BASED ON ROLE
+    # INLINE TABLES
     # ------------------------------------------------------
     def get_inlines(self, request, obj=None):
         if not obj:
@@ -107,11 +148,11 @@ class UserAdmin(admin.ModelAdmin):
             return [ProductInline, RoleUpgradeRequestInline]
         elif obj.role in ("retailer", "consumer"):
             return [OrderInline, RoleUpgradeRequestInline]
-        else:
-            return [RoleUpgradeRequestInline]
+        return [RoleUpgradeRequestInline]
+
 
     # ------------------------------------------------------
-    # ROLE DISPLAY (COLORED)
+    # ROLE FORMATTING
     # ------------------------------------------------------
     def role_colored(self, obj):
         colors = {
@@ -120,140 +161,79 @@ class UserAdmin(admin.ModelAdmin):
             "retailer": "blue",
             "consumer": "green",
         }
-        color = colors.get(obj.role, "gray")
-        return format_html(f"<b style='color:{color};text-transform:capitalize;'>{obj.role}</b>")
-    role_colored.short_description = "Role"
+        return format_html(
+            "<b style='color:{}'>{}</b>",
+            colors.get(obj.role, "gray"),
+            obj.role.capitalize()
+        )
 
     # ------------------------------------------------------
-    # VERIFICATION SUMMARY (DETAIL VIEW)
+    # BADGE
+    # ------------------------------------------------------
+    def verification_badge(self, obj):
+        color = "green" if obj.is_verified else "red"
+        label = "Verified" if obj.is_verified else "Unverified"
+        return format_html(f"<b style='color:{color};'>{label}</b>")
+
+    # ------------------------------------------------------
+    # VERIFICATION SUMMARY (DETAIL)
     # ------------------------------------------------------
     def verification_summary(self, obj):
         if not obj.is_verified:
             return format_html("<b style='color:red;'>❌ Unverified</b>")
         admin_name = obj.verified_by.username if obj.verified_by else "Unknown"
-        verified_time = (
-            localtime(obj.verified_at).strftime("%Y-%m-%d %H:%M %Z")
-            if obj.verified_at else "N/A"
-        )
+        dt = obj.verified_at.strftime("%Y-%m-%d %H:%M") if obj.verified_at else "N/A"
         return format_html(
-            "<b style='color:green;'>✅ Verified by {}</b><br><small>{}</small>",
-            admin_name,
-            verified_time,
+            "<b style='color:green;'>Verified by {}</b><br><small>{}</small>",
+            admin_name, dt
         )
-    verification_summary.short_description = "Verification Details"
 
     # ------------------------------------------------------
-    # VERIFICATION BADGE (LIST VIEW)
-    # ------------------------------------------------------
-    def verification_badge(self, obj):
-        color = "green" if obj.is_verified else "red"
-        label = "Verified" if obj.is_verified else "Unverified"
-        return format_html(f"<span style='color:{color};font-weight:bold;'>{label}</span>")
-    verification_badge.short_description = "Status"
-
-    # ------------------------------------------------------
-    # LAST VERIFIED AT COLUMN
-    # ------------------------------------------------------
-    def last_verified(self, obj):
-        if not obj.verified_at:
-            return format_html("<span style='color:gray;'>—</span>")
-        local_time = localtime(obj.verified_at).strftime("%Y-%m-%d %H:%M %Z")
-        return format_html(f"<span style='color:teal;'>{local_time}</span>")
-    last_verified.short_description = "Last Verified"
-    last_verified.admin_order_field = "verified_at"
-
-    # ------------------------------------------------------
-    # TIME SINCE VERIFICATION BADGE
+    # VERIFIED SINCE (LIST)
     # ------------------------------------------------------
     def verified_since(self, obj):
-        """Show how long ago the user was verified."""
         if not obj.is_verified or not obj.verified_at:
             return "-"
         delta = timezone.now() - obj.verified_at
-        days = delta.days
-        if days < 1:
-            return format_html("<span style='color:teal;'>Today</span>")
-        elif days == 1:
-            return format_html("<span style='color:teal;'>1 day ago</span>")
-        elif days < 30:
-            return format_html(f"<span style='color:teal;'>{days} days ago</span>")
-        else:
-            months = days // 30
-            return format_html(f"<span style='color:teal;'>{months} month(s) ago</span>")
-    verified_since.short_description = "Verified Since"
+        if delta.days == 0:
+            return "Today"
+        return f"{delta.days} days ago"
 
     # ------------------------------------------------------
-    # TOTAL PRODUCTS / ORDERS COUNTS
+    # LAST VERIFIED COLUMN
+    # ------------------------------------------------------
+    def last_verified(self, obj):
+        if not obj.verified_at:
+            return "-"
+        return obj.verified_at.strftime("%Y-%m-%d %H:%M")
+
+    # ------------------------------------------------------
+    # COUNTS
     # ------------------------------------------------------
     def total_products(self, obj):
-        if obj.role not in ("wholesaler", "retailer"):
-            return "-"
-        return Product.objects.filter(owner=obj).count()
-    total_products.short_description = "Products"
+        return Product.objects.filter(owner=obj).count() if obj.role in ("wholesaler", "retailer") else "-"
 
     def total_orders(self, obj):
-        if obj.role not in ("retailer", "consumer"):
-            return "-"
-        return Order.objects.filter(user=obj).count()
-    total_orders.short_description = "Orders"
+        return Order.objects.filter(user=obj).count() if obj.role in ("retailer", "consumer") else "-"
 
     # ------------------------------------------------------
-    # FIELD LAYOUT (DETAIL VIEW)
-    # ------------------------------------------------------
-    def get_fieldsets(self, request, obj=None):
-        return (
-            (None, {
-                "fields": (
-                    "username",
-                    "email",
-                    "role_colored",
-                    "verification_summary",
-                )
-            }),
-            ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser")}),
-        )
-
-    # ------------------------------------------------------
-    # EMAIL NOTIFICATION HELPER
-    # ------------------------------------------------------
-    def send_verification_email(self, user, verified=True):
-        subject = "Account Verification Update"
-        status = "verified ✅" if verified else "unverified ❌"
-        message = (
-            f"Hello {user.username},\n\n"
-            f"Your account has been {status} by an administrator.\n"
-            f"— CliffINDUS Team"
-        )
-        try:
-            send_mail(
-                subject,
-                message,
-                getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@cliffindus.com"),
-                [user.email],
-                fail_silently=True,
-            )
-        except Exception:
-            pass
-
-    # ------------------------------------------------------
-    # ADMIN BULK ACTIONS
+    # BULK ACTIONS
     # ------------------------------------------------------
     def verify_users(self, request, queryset):
         for user in queryset:
-            user.mark_verified(admin_user=request.user)
-            self.send_verification_email(user, verified=True)
-        self.message_user(request, f"{queryset.count()} user(s) verified ✅")
+            user.mark_verified(request.user)
+        self.message_user(request, f"{queryset.count()} user(s) verified")
 
     def unverify_users(self, request, queryset):
         for user in queryset:
-            user.mark_unverified(admin_user=request.user)
-            self.send_verification_email(user, verified=False)
-        self.message_user(request, f"{queryset.count()} user(s) unverified ❌")
+            user.mark_unverified(request.user)
+        self.message_user(request, f"{queryset.count()} user(s) unverified")
 
 
+# Replace registration
 try:
     cliffindus_admin_site.unregister(User)
-except admin.sites.NotRegistered:
+except:
     pass
 
 cliffindus_admin_site.register(User, UserAdmin)

@@ -1,30 +1,21 @@
-from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    ProductViewSet,
+from cliffindus_backend.products.views import (
     CategoryViewSet,
+    ProductViewSet,
     CartViewSet,
     CartItemViewSet,
     OrderViewSet,
     ShippingViewSet,
+    AdminOrderManagementViewSet,
 )
 
-# --------------------------------------------------------
-# ✅ ROUTER SETUP
-# --------------------------------------------------------
 router = DefaultRouter()
+router.register(r"categories", CategoryViewSet, basename="category")
+router.register(r"products", ProductViewSet, basename="product")
+router.register(r"carts", CartViewSet, basename="cart")
+router.register(r"cart-items", CartItemViewSet, basename="cartitem")
+router.register(r"orders", OrderViewSet, basename="order")
+router.register(r"shipping", ShippingViewSet, basename="shipping")
+router.register(r"admin-orders", AdminOrderManagementViewSet, basename="adminorder")
 
-# 🧭 Register all major endpoints
-router.register(r'products', ProductViewSet, basename='product')
-router.register(r'categories', CategoryViewSet, basename='category')
-router.register(r'carts', CartViewSet, basename='cart')
-router.register(r'cart-items', CartItemViewSet, basename='cart-item')
-router.register(r'orders', OrderViewSet, basename='order')
-router.register(r'shipping', ShippingViewSet, basename='shipping')
-
-# --------------------------------------------------------
-# ✅ FINAL URL PATTERNS
-# --------------------------------------------------------
-urlpatterns = [
-    path('', include(router.urls)),
-]
+urlpatterns = router.urls

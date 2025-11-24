@@ -1,17 +1,22 @@
-# Use official Python image
+# ------------------------------
+# ✅ Backend Dockerfile (Django)
+# ------------------------------
 FROM python:3.10-slim
 
-# Set working directory inside container
-WORKDIR /app
+# Set work directory
+WORKDIR /app/my-first-app/CliffINDUS
 
-# Copy requirements if you have one
-COPY requirements.txt /app/
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev gcc && \
+    apt-get clean
 
-# Install dependencies
+# Copy requirements and install dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the project
-COPY . /app/
+# Copy the rest of the backend code
+COPY . .
 
 # Expose Django port
 EXPOSE 8000

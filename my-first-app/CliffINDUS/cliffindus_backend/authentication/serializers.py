@@ -2,6 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import get_user_model
 from cliffindus_backend.users.models import User
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from cliffindus_backend.users.serializers import UserSerializer
 
 
 User = get_user_model()
@@ -67,3 +69,9 @@ class UserSerializer(serializers.ModelSerializer):
             "phone",
             "address",
         )
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        data["user"] = UserSerializer(self.user).data
+        return data

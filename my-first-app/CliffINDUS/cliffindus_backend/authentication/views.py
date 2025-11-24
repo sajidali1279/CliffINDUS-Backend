@@ -4,11 +4,15 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import RegisterSerializer
 from cliffindus_backend.products.models import Cart
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import CustomTokenObtainPairSerializer
 
 
 User = get_user_model()
 
 
+class CustomLoginView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
 # ---------------------------
 # Register new users (with auto-cart + JWT tokens)
 # ---------------------------
